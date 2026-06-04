@@ -7,7 +7,7 @@
 | 状态 | 红 | 黄 | 绿 | 含义 |
 |------|---|---|------|------|
 | 空闲 | ● 灰 | ● 灰 | ● **亮** | Claude 等待输入 |
-| 任务完成 | ● 灰 | ● 灰 | ● **闪烁 10 次后常亮** | Claude 刚完成任务，回到空闲 |
+| 任务完成 | ● 灰 | ● 灰 | ● **闪烁 10 次 → 常亮** | Claude 刚完成任务（闪烁过渡后转为空闲） |
 | 思考中 | ● 灰 | ● **慢闪** | ● 灰 | Claude 正在思考/生成回复 |
 | 执行任务 | ● 灰 | ● **常亮** | ● 灰 | Claude 正在调用工具 |
 | 等待授权 | ● **闪烁 10 次后常亮** | ● 灰 | ● 灰 | Claude 需要用户确认（Yes/No） |
@@ -72,27 +72,100 @@ ClaudeTrafficLight/
 在 PowerShell 中执行（需要 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)）：
 
 ```powershell
-cd <本项目根目录>
+cd 项目根目录
 .\scripts\install.ps1
 ```
 
 安装脚本会：
 
 1. `dotnet publish` 发布为单文件 exe（Release / win-x64 / 自包含 false）
-2. 复制 `signal.ps1`、`start-claude.cmd` 到安装目录
-3. 生成 `%LOCALAPPDATA%\ClaudeLight\settings.generated.json`
+2. 复制 `signal.ps1`、`start-claude.cmd`、`manual-test.ps1` 到安装目录 `%LOCALAPPDATA%\ClaudeLight\`
+3. 生成 Hook 配置文件 `%LOCALAPPDATA%\ClaudeLight\settings.generated.json`（已将 `__SIGNAL_SCRIPT__` 占位符替换为实际的 `signal.ps1` 路径）
 
 ## 配置 Claude Hooks
 
-把 `%LOCALAPPDATA%\ClaudeLight\settings.generated.json` 里的 `hooks` 节点**合并**到：
+这是让红绿灯工作的**关键步骤**。Claude Code 通过 Hooks 机制在特定事件发生时触发 `signal.ps1`，从而更新状态灯。
 
-```
-%USERPROFILE%\.claude\settings.json
-```
+### 手动合并（推荐）
 
-**注意**：如果已有 `hooks`，不要整文件覆盖，只把事件项合并进去。
+1. 安装完成后，找到生成的文件：
 
-支持的 Hook 事件：
+   ```
+   %LOCALAPPDATA%\ClaudeLight\settings.generated.json
+   ```
+
+2. 打开（或创建）Claude Code 的用户配置文件：
+
+   ```
+   %USERPROFILE%\.claude\settings.json
+   ```
+
+3. 将 `settings.generated.json` 中的整个 `"hooks"` 节点**合并**到 `settings.json` 中。
+
+   > **注意**：如果 `settings.json` 已有 `"hooks"` 节点，**不要整文件覆盖**，只把事件项合并进去，避免覆盖已有的 Hook 配置。
+
+   以下为合并后的示例，其中命令路径使用 `%LOCALAPPDATA%` 简写示意；实际生成的文件中 `__SIGNAL_SCRIPT__` 已被替换为完整绝对路径，直接使用即可，无需手动替换。
+
+   ```json
+   {
+     "hooks": {
+       "SessionStart": [
+         {
+           "matcher": "",
+           "hooks": [
+             {
+               "type": "command",
+               "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" session_start"
+             }
+           ]
+         }
+       ],
+       "UserPromptSubmit": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" thinking" } ] }
+       ],
+       "PreToolUse": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" working" } ] }
+       ],
+       "PostToolUse": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" thinking" } ] }
+       ],
+       "PostToolUseFailure": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" error" } ] }
+       ],
+       "PostToolBatch": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" thinking" } ] }
+       ],
+       "PermissionRequest": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" permission" } ] }
+       ],
+       "Notification": [
+         { "matcher": "permission_prompt", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" permission" } ] },
+         { "matcher": "idle_prompt", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" done" } ] }
+       ],
+       "Stop": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" done" } ] }
+       ],
+       "StopFailure": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" error" } ] }
+       ],
+       "SessionEnd": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" off" } ] }
+       ]
+     }
+   }
+   ```
+
+   > 以上示例中的 `%LOCALAPPDATA%` 仅为简写占位符；实际生成的 `settings.generated.json` 中所有路径都已替换为完整绝对路径，直接合并即可。
+
+4. **验证**：启动 Claude，在终端输入以下命令确认 Hook 事件已被识别：
+
+   ```
+   /hooks
+   ```
+
+   如果配置正确，可以看到已注册的所有 Hook 事件列表。
+
+### 支持的 Hook 事件
 
 | Hook 事件 | 映射状态 | 触发时机 |
 |-----------|----------|----------|
@@ -109,8 +182,6 @@ cd <本项目根目录>
 | `StopFailure` | error | 停止失败 |
 | `SessionEnd` | off | 会话结束 |
 
-合并后，在 Claude CLI 输入 `/hooks` 确认对应事件已被识别。
-
 ## 启动方式
 
 **方式一（推荐）**：用包装器启动
@@ -119,7 +190,7 @@ cd <本项目根目录>
 %LOCALAPPDATA%\ClaudeLight\scripts\start-claude.cmd
 ```
 
-它会将终端标题设为 `Claude Code - TrafficLight`，方便状态灯精确聚焦。
+它会先将终端标题设为 `Claude Code - TrafficLight`，再启动 Claude。这样状态灯的"定位 Claude 终端"功能可以精确聚焦到对应的终端窗口。
 
 **方式二**：直接启动 Claude，让 Hooks 自动拉起状态灯
 
@@ -137,6 +208,36 @@ cd <本项目根目录>
 %LOCALAPPDATA%\ClaudeLight\scripts\manual-test.ps1 off
 ```
 
+## 常见问题
+
+### Hook 没有触发
+
+1. 确认已将 `settings.generated.json` 的 hooks 节点正确合并到 `%USERPROFILE%\.claude\settings.json`
+2. 在 Claude 中输入 `/hooks` 查看已注册事件
+3. 检查 `%LOCALAPPDATA%\ClaudeLight\status.json` 是否存在以及内容是否正确
+
+### PowerShell 执行策略限制
+
+如果公司电脑执行策略限制 PowerShell 脚本运行：
+
+```powershell
+# 允许当前用户执行本地脚本（管理员权限）
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+或者由管理员将 `signal.ps1` 加入可信路径。
+
+### 状态灯未自动启动
+
+`signal.ps1` 会在写入状态时检查并自动拉起 `ClaudeTrafficLight.exe`。如果未能自动启动：
+
+- 确认 `%LOCALAPPDATA%\ClaudeLight\app\ClaudeTrafficLight.exe` 存在
+- 手动双击该 exe 测试
+
+### .NET 运行时
+
+本工具需要 .NET 8 Runtime（非 SDK 也能运行）。安装脚本使用 `SelfContained=false`，所以目标机器需安装 .NET 8 运行时。
+
 ## 实现细节
 
 **信号桥原子写入**：`signal.ps1` 使用 `.tmp + Move-Item` 方式写入 `status.json`，避免文件读取时读到不完整内容。
@@ -151,5 +252,3 @@ cd <本项目根目录>
 
 - Windows 不建议程序强行自动 Pin 到任务栏；如需固定在任务栏，请手动右键固定发布的 exe
 - 本工具只提醒，不自动批准 Claude 的权限请求
-- 如果公司电脑执行策略限制 PowerShell，需允许当前用户执行本地脚本，或由管理员把 `signal.ps1` 加入可信路径
-- 需要 .NET 8 Runtime（非 SDK 也能运行），安装脚本使用 `SelfContained=false`，所以目标机器需安装 .NET 8 运行时

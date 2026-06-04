@@ -18,6 +18,7 @@ New-Item -ItemType Directory -Force -Path $appDir, $scriptsDir | Out-Null
 dotnet publish $project -c Release -r win-x64 -p:PublishSingleFile=true -p:SelfContained=false -o $appDir
 Copy-Item (Join-Path $repoRoot "scripts\signal.ps1") (Join-Path $scriptsDir "signal.ps1") -Force
 Copy-Item (Join-Path $repoRoot "scripts\start-claude.cmd") (Join-Path $scriptsDir "start-claude.cmd") -Force
+Copy-Item (Join-Path $repoRoot "scripts\manual-test.ps1") (Join-Path $scriptsDir "manual-test.ps1") -Force
 
 $template = Get-Content (Join-Path $repoRoot "hooks\settings.template.json") -Raw
 $signal = (Join-Path $scriptsDir "signal.ps1").Replace("\", "\\")

@@ -167,13 +167,69 @@ ClaudeTrafficLight.exe 读取 → 解析 → 更新灯效
 
 ### 5.2 安装步骤
 
-1. 执行 `scripts\install.ps1`
-2. 将生成的 `settings.generated.json` 中的 hooks 合并到 `%USERPROFILE%\.claude\settings.json`
-3. 在 Claude CLI 中运行 `/hooks` 验证
+1. **构建与安装**：在项目根目录执行 `.\scripts\install.ps1`
+   - 自动 `dotnet publish` 发布为单文件 exe
+   - 复制 `signal.ps1`、`start-claude.cmd`、`manual-test.ps1` 到安装目录 `%LOCALAPPDATA%\ClaudeLight\`
+   - 生成 Hook 配置文件 `%LOCALAPPDATA%\ClaudeLight\settings.generated.json`
+
+2. **手动合并 Claude Hooks 配置**（关键步骤）：
+   - 打开（或创建）Claude Code 配置文件：`%USERPROFILE%\.claude\settings.json`
+   - 将 `settings.generated.json` 中的整个 `"hooks"` 节点合并到 `settings.json` 中
+   - 注意：如果已有 `"hooks"` 节点，不要整文件覆盖，只把事件项合并进去
+
+   合并后的示例（未配置过 hooks 的情况）：
+
+   ```json
+   {
+     "hooks": {
+       "SessionStart": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" session_start" } ] }
+       ],
+       "UserPromptSubmit": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" thinking" } ] }
+       ],
+       "PreToolUse": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" working" } ] }
+       ],
+       "PostToolUse": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" thinking" } ] }
+       ],
+       "PostToolUseFailure": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" error" } ] }
+       ],
+       "PostToolBatch": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" thinking" } ] }
+       ],
+       "PermissionRequest": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" permission" } ] }
+       ],
+       "Notification": [
+         { "matcher": "permission_prompt", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" permission" } ] },
+         { "matcher": "idle_prompt", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" done" } ] }
+       ],
+       "Stop": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" done" } ] }
+       ],
+       "StopFailure": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" error" } ] }
+       ],
+       "SessionEnd": [
+         { "matcher": "", "hooks": [ { "type": "command", "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%LOCALAPPDATA%\\ClaudeLight\\scripts\\signal.ps1\" off" } ] }
+       ]
+     }
+   }
+   ```
+
+3. **验证**：启动 Claude，在终端输入 `/hooks`，确认能看到已注册的所有 Hook 事件列表
 
 ### 5.3 启动方式
 
 - **推荐**：使用 `start-claude.cmd`（设置终端标题为 `Claude Code - TrafficLight`，提高聚焦准确率）
+
+  ```cmd
+  %LOCALAPPDATA%\ClaudeLight\scripts\start-claude.cmd
+  ```
+
 - **自动**：只要 Hooks 配好，Claude 触发事件时 signal.ps1 会自动拉起状态灯
 
 ## 6. 约束与限制
@@ -192,3 +248,33 @@ ClaudeTrafficLight.exe 读取 → 解析 → 更新灯效
 - 声音提醒（任务完成时播放提示音）
 - 状态历史图表（统计每 session 的等待/工作时间）
 - 自定义 Hook 事件映射
+
+## 8. 常见问题
+
+### 8.1 Hook 没有触发
+
+1. 确认已将 `settings.generated.json` 的 hooks 节点正确合并到 `%USERPROFILE%\.claude\settings.json`
+2. 在 Claude 中输入 `/hooks` 查看已注册事件
+3. 检查 `%LOCALAPPDATA%\ClaudeLight\status.json` 是否存在以及内容是否正确
+
+### 8.2 PowerShell 执行策略限制
+
+如果公司电脑执行策略限制 PowerShell 脚本运行：
+
+```powershell
+# 允许当前用户执行本地脚本（管理员权限）
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+或者由管理员将 `signal.ps1` 加入可信路径。
+
+### 8.3 状态灯未自动启动
+
+`signal.ps1` 会在写入状态时检查并自动拉起 `ClaudeTrafficLight.exe`。如果未能自动启动：
+
+- 确认 `%LOCALAPPDATA%\ClaudeLight\app\ClaudeTrafficLight.exe` 存在
+- 手动双击该 exe 测试
+
+### 8.4 .NET 运行时
+
+本工具需要 .NET 8 Runtime（非 SDK 也能运行）。安装脚本使用 `SelfContained=false`，所以目标机器需安装 .NET 8 运行时。
