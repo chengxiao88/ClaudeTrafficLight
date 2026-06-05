@@ -3,7 +3,7 @@ $content = Get-Content $settingsFile -Raw
 if ($content -match '"hooks"') {
     exit 0
 }
-$hooksFile = "C:\Users\ChengXiao\ClaudeTrafficLight\.claude\settings.json"
+$hooksFile = Join-Path $PSScriptRoot "..\.claude\settings.json"
 $hooks = Get-Content $hooksFile -Raw
 $clean = $content.TrimEnd() -replace '}\s*$', ''
 $merged = $clean + ",`r`n  " + $hooks.Substring(1)
