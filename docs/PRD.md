@@ -182,7 +182,8 @@ ClaudeTrafficLight.exe 读取 → 解析 → 更新灯效
 
 - Windows 10/11
 - .NET 8 Runtime（非 SDK 也可）
-- 构建时需要 .NET 8 SDK
+- 部分电脑（如较新 Windows 11 版本）还需 .NET 10 Runtime
+- 构建时需要 .NET 8 SDK（部分电脑还需 .NET 10 SDK）
 
 ### 5.2 安装步骤
 
@@ -282,4 +283,6 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ### 8.5 .NET 运行时
 
-本工具需要 .NET 8 Runtime（非 SDK 也能运行）。安装脚本使用 `SelfContained=false`，所以目标机器需安装 .NET 8 运行时。
+本工具默认需要 .NET 8 Runtime（非 SDK 也能运行）。安装脚本使用 `SelfContained=false`，所以目标机器需安装 .NET 8 运行时。
+
+经实测，部分电脑（如较新 Windows 11 版本）启动时仍提示缺少运行时，需额外安装 .NET 10 Runtime。如遇此情况，请至 [dotnet.microsoft.com/download](https://dotnet.microsoft.com/en-us/download) 下载安装 .NET 10 Desktop Runtime 后重试。

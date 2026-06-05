@@ -102,13 +102,19 @@ claude --version
 
 ### Q: 提示"需要 .NET 8 Runtime"？
 
-这个工具需要 .NET 8 运行环境。去下载：
+这个工具需要 .NET 运行环境。请根据你的系统选择：
 
+**大部分电脑** → 安装 .NET 8 Desktop Runtime：
 👉 [.NET 8 Desktop Runtime 下载页面](https://dotnet.microsoft.com/download/dotnet/8.0)
-
 - 选择 **`.NET 8.0.xx Desktop runtime`**（x64）
 - 下载安装，安装完**重启电脑**
-- 然后再试一次
+
+**部分电脑（如较新 Windows 11 版本）** → 还需安装 .NET 10 Runtime：
+👉 [.NET 10 Desktop Runtime 下载页面](https://dotnet.microsoft.com/en-us/download)
+- 在页面中选择 **`.NET 10 Desktop runtime`**（x64）
+- 安装后重启
+
+> 💡 不确定装哪个？先装 .NET 8，如果启动时还提示缺运行时，再补装 .NET 10。
 
 ### Q: 重启电脑后红绿灯又没了？
 
@@ -171,7 +177,7 @@ ClaudeTrafficLight/
 
 ## 🛠️ 给开发者
 
-想编译源码？确保安装了 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)，然后：
+想编译源码？确保安装了 [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)（部分电脑还需 [.NET 10 SDK](https://dotnet.microsoft.com/en-us/download)），然后：
 
 ```powershell
 .\scripts\install.ps1
