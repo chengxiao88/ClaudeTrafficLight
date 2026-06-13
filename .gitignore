@@ -1,7 +1,8 @@
-﻿**/bin/
+**/bin/
 **/obj/
 .vs/
 *.user
 *.suo
 *.log
 .env
+.claude/settings.json

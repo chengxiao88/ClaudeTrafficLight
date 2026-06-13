@@ -181,54 +181,77 @@ ClaudeTrafficLight.exe 读取 → 解析 → 更新灯效
 ### 5.1 前置依赖
 
 - Windows 10/11
-- .NET 8 Runtime（非 SDK 也可）
-- 部分电脑（如较新 Windows 11 版本）还需 .NET 10 Runtime
-- 构建时需要 .NET 8 SDK（部分电脑还需 .NET 10 SDK）
+- .NET 8 SDK（用于编译，**不是 Runtime**）
+- .NET 8 Desktop Runtime（用于运行已编译的程序）
+
+> ⚠️ **SDK vs Runtime**：编译时需要 SDK，运行时只需要 Runtime。如果提示 "No .NET SDKs were found"，请安装 .NET 8 SDK x64。
 
 ### 5.2 安装步骤
 
-1. **构建与安装**：在项目根目录执行 `.\scripts\install.ps1`
-   - 自动 `dotnet publish` 发布为单文件 exe
-   - 复制 `signal.ps1`、`start-claude.cmd`、`manual-test.ps1` 到安装目录 `%LOCALAPPDATA%\ClaudeLight\`
-   - 生成 Hook 配置文件 `%LOCALAPPDATA%\ClaudeLight\settings.generated.json`
+1. **构建与安装**：在项目根目录执行：
 
-2. **使用 start-claude.cmd 启动**（自动注入 hooks，无需手动配置）：
-
-   ```cmd
-   .\scripts\start-claude.cmd
+   ```powershell
+   .\scripts\install.ps1
    ```
 
-   `start-claude.cmd` 在 `claude` 启动前自动执行 `ensure-hooks.ps1`，将 hooks 写入 `~/.claude/settings.json`。如果 `settings.json` 已被代理工具覆写，hooks 会自动补回。
+   如果 PowerShell 执行策略阻止脚本运行，使用：
 
-   验证：Claude 启动后在终端输入 `/hooks`，确认能看到所有 Hook 事件列表。
+   ```powershell
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+   ```
 
-> **与旧版 PRD 的差异**：当前版本不要求用户手动合并 `settings.generated.json`。`start-claude.cmd` + `ensure-hooks.ps1` 方案自动完成 hooks 注入，且能抵抗代理工具覆写。如需手动配置，见下方备忘。
+   安装脚本会自动：
+   - 检测 .NET 8 SDK 并执行 `dotnet publish` 发布为单文件 exe
+   - 将 `ClaudeTrafficLight.exe` 复制到 `%LOCALAPPDATA%\ClaudeLight\app\`
+   - 复制 `signal.ps1`、`start-claude.cmd`、`ensure-hooks.ps1`、`manual-test.ps1` 到 `%LOCALAPPDATA%\ClaudeLight\scripts\`
+   - 调用 `ensure-hooks.ps1 -Force` 将 Hooks 写入 `%USERPROFILE%\.claude\settings.json`
+   - 生成参考配置文件 `%LOCALAPPDATA%\ClaudeLight\settings.generated.json`
 
-#### 手动合并 hooks（备选）
+2. **验证安装**：在 PowerShell 中检查：
 
-当无法使用 `start-claude.cmd` 时，可手动操作：
+   ```powershell
+   # 检查程序文件
+   Test-Path "$env:LOCALAPPDATA\ClaudeLight\app\ClaudeTrafficLight.exe"
 
-1. 打开 `%USERPROFILE%\.claude\settings.json`
-2. 将 `settings.generated.json` 中的整个 `"hooks"` 节点合并进去
-3. 输入 `/hooks` 验证
+   # 检查进程
+   Get-Process ClaudeTrafficLight -ErrorAction SilentlyContinue
 
-### 5.3 启动方式
+   # 手动测试状态灯
+   & "$env:LOCALAPPDATA\ClaudeLight\scripts\signal.ps1" permission
+   & "$env:LOCALAPPDATA\ClaudeLight\scripts\signal.ps1" done
+   ```
 
-- **唯一推荐**：使用 `start-claude.cmd`
+### 5.3 Hooks 注入机制
 
-  ```cmd
-  .\scripts\start-claude.cmd
-  ```
+本工具通过 `ensure-hooks.ps1` 动态注入 Hooks，**不再使用硬编码路径**：
 
-  启动流程：
-  1. `ensure-hooks.ps1` 检查并将 hooks 注入 `~/.claude/settings.json`
-  2. 启动 `ClaudeTrafficLight.exe`（桌面右下角红绿灯窗口）
-  3. 设置终端标题为 `Claude Code - TrafficLight`
-  4. 启动 `claude`（加载带 hooks 的配置）
+- `ensure-hooks.ps1` 在运行时读取自身所在目录的 `signal.ps1` 完整路径
+- 将该路径动态写入 `%USERPROFILE%\.claude\settings.json` 的 hooks 配置
+- 幂等执行：如果 hooks 已指向当前 `signal.ps1`，则跳过写入
+- 安全保护：如果 `settings.json` 不是合法 JSON，会备份后重新创建
 
-  **为什么必须用它？** 某些代理工具（配置了 `ANTHROPIC_BASE_URL`）重启后会覆写 `settings.json`，清除 hooks。只有 `start-claude.cmd` 能保证 hooks 在每次启动时自动补回。
+这种设计确保：
+- Hooks 路径自动适应用户的实际安装目录
+- 即使 `settings.json` 被其他工具（如代理工具）覆写，启动时也会自动修复
 
-- **备选**：如果已通过其他方式确保 hooks 配置正确，直接运行 `claude` 也可触发 `signal.ps1` 自动拉起状态灯
+### 5.4 启动方式
+
+**唯一推荐**：使用安装目录下的启动器
+
+```cmd
+%LOCALAPPDATA%\ClaudeLight\scripts\start-claude.cmd
+```
+
+启动流程：
+1. 如果从源码目录运行，自动转发到安装目录版本
+2. 执行 `ensure-hooks.ps1` 检查并注入 Hooks 到 `%USERPROFILE%\.claude\settings.json`
+3. 启动 `ClaudeTrafficLight.exe`（桌面右下角红绿灯窗口）
+4. 设置终端标题为 `Claude Code - TrafficLight`
+5. 启动 `claude`（加载带 hooks 的配置）
+
+> ⚠️ **不要直接运行源码目录的 `scripts\start-claude.cmd`**。如果已安装，源码版本会自动转发到安装目录版本。直接运行源码版本会导致 Hooks 路径指向源码目录的 `signal.ps1`，移动或删除源码后 Hooks 会失效。
+
+**备选**：如果已通过其他方式确保 Hooks 配置正确，直接运行 `claude` 也可触发 `signal.ps1` 自动拉起状态灯。
 
 ## 6. 约束与限制
 
@@ -249,40 +272,102 @@ ClaudeTrafficLight.exe 读取 → 解析 → 更新灯效
 
 ## 8. 常见问题
 
-### 8.1 Hook 没有触发
+### 8.1 PowerShell 执行策略导致脚本无法运行
 
-1. **是否使用了 `start-claude.cmd` 启动？** 如果直接运行 `claude` 命令，hooks 可能已被代理工具清除。始终使用 `start-claude.cmd` 可避免此问题
-2. 在 Claude 中输入 `/hooks` 查看已注册事件列表
-3. 手动运行 `ensure-hooks.ps1` 检查 hooks 是否已注入：`powershell -File scripts\ensure-hooks.ps1`
-4. 检查 `%LOCALAPPDATA%\ClaudeLight\status.json` 是否存在以及内容是否正确
+如果 Windows 执行策略限制 PowerShell 脚本运行，有两种解决方法：
 
-### 8.2 重启后 hooks 丢失
-
-某些代理工具（配置了 `ANTHROPIC_BASE_URL`）在 Windows 启动时会覆写 `~/.claude/settings.json`，清除所有 hooks。这是**预期行为**，解决方式：
-
-- **始终使用 `start-claude.cmd` 启动 Claude**，它会在 `claude` 运行前自动注入 hooks
-- 如果使用其他启动方式，先手动执行：`powershell -File <项目路径>\scripts\ensure-hooks.ps1`
-
-### 8.3 PowerShell 执行策略限制
-
-如果公司电脑执行策略限制 PowerShell 脚本运行：
+**方法 1：使用绕过参数（推荐，不影响系统设置）**
 
 ```powershell
-# 允许当前用户执行本地脚本（管理员权限）
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+```
+
+**方法 2：修改当前用户的执行策略**
+
+```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-或者由管理员将 `signal.ps1` 加入可信路径。
+### 8.2 缺少 .NET 8 SDK 导致 exe 无法生成
 
-### 8.4 状态灯未自动启动
+如果 `install.ps1` 输出：
 
-`signal.ps1` 会在写入状态时检查并自动拉起 `ClaudeTrafficLight.exe`。如果未能自动启动：
+```
+No .NET SDKs were found. Scripts and Hooks will be installed, but ClaudeTrafficLight.exe cannot be built.
+```
 
-- 确认 `%LOCALAPPDATA%\ClaudeLight\app\ClaudeTrafficLight.exe` 存在
-- 手动双击该 exe 测试
+说明缺少 .NET 8 SDK。请注意：
 
-### 8.5 .NET 运行时
+- 编译需要 **SDK**，不是 Runtime
+- Runtime 只能运行已编译的程序，无法编译新程序
 
-本工具默认需要 .NET 8 Runtime（非 SDK 也能运行）。安装脚本使用 `SelfContained=false`，所以目标机器需安装 .NET 8 运行时。
+解决步骤：
 
-经实测，部分电脑（如较新 Windows 11 版本）启动时仍提示缺少运行时，需额外安装 .NET 10 Runtime。如遇此情况，请至 [dotnet.microsoft.com/download](https://dotnet.microsoft.com/en-us/download) 下载安装 .NET 10 Desktop Runtime 后重试。
+1. 访问 [.NET 8 SDK 下载页面](https://dotnet.microsoft.com/download/dotnet/8.0)
+2. 下载 **SDK (x64)** 版本
+3. 安装后重新打开 PowerShell
+4. 验证：`dotnet --list-sdks` 应显示 `8.0.xxx`
+5. 重新运行 `.\scripts\install.ps1`
+
+### 8.3 Hooks 已安装但桌面红绿灯不显示
+
+排查步骤：
+
+1. **确认 exe 存在**：
+   ```powershell
+   Test-Path "$env:LOCALAPPDATA\ClaudeLight\app\ClaudeTrafficLight.exe"
+   ```
+   如果返回 `False`，说明编译失败，请先解决 .NET SDK 问题
+
+2. **手动启动程序**：
+   ```powershell
+   & "$env:LOCALAPPDATA\ClaudeLight\app\ClaudeTrafficLight.exe"
+   ```
+
+3. **检查 .NET Runtime**：如果手动启动提示缺运行时，安装 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
+
+4. **手动测试 signal.ps1**：
+   ```powershell
+   & "$env:LOCALAPPDATA\ClaudeLight\scripts\signal.ps1" thinking
+   ```
+   执行后红绿灯应变黄并闪烁
+
+### 8.4 settings.json 非法 JSON 被备份
+
+如果 `ensure-hooks.ps1` 检测到 `%USERPROFILE%\.claude\settings.json` 不是合法的 JSON 文件，它会：
+
+1. 备份原文件为 `settings.json.invalid-YYYYMMDD-HHmmss.bak`
+2. 创建新的有效 `settings.json`
+
+这是正常的安全保护机制。用户可以从备份文件恢复其他配置项。
+
+### 8.5 不要直接运行源码目录的 start-claude.cmd
+
+源码目录的 `scripts\start-claude.cmd` 会检测并转发到安装目录版本。如果直接运行源码版本：
+
+- Hooks 路径会被写入源码目录的 `signal.ps1` 路径
+- 移动或删除源码目录后 Hooks 会失效
+- `start-claude.cmd` 中的转发逻辑确保始终使用安装版本
+
+**始终使用安装目录下的启动器**：
+
+```cmd
+%LOCALAPPDATA%\ClaudeLight\scripts\start-claude.cmd
+```
+
+### 8.6 Hook 没有触发
+
+1. **是否使用了安装目录的 `start-claude.cmd` 启动？**
+2. 在 Claude 中输入 `/hooks` 查看已注册事件列表
+3. 手动运行 `ensure-hooks.ps1` 检查 hooks 是否已注入：
+   ```powershell
+   & "$env:LOCALAPPDATA\ClaudeLight\scripts\ensure-hooks.ps1"
+   ```
+4. 检查 `%LOCALAPPDATA%\ClaudeLight\status.json` 是否存在以及内容是否正确
+
+### 8.7 重启后 hooks 丢失
+
+某些代理工具（配置了 `ANTHROPIC_BASE_URL`）在 Windows 启动时会覆写 `%USERPROFILE%\.claude\settings.json`，清除所有 hooks。解决方式：
+
+- **始终使用安装目录的 `start-claude.cmd` 启动 Claude**
+- 它会在 `claude` 运行前自动注入 hooks
