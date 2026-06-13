@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\\\Path\\\\To\\\\ClaudeLight\\\\scripts\\\\signal.ps1\" session_start"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\\\Path\\\\To\\\\ClaudeLight\\\\scripts\\\\signal.ps1\" thinking"
+          }
+        ]
+      }
+    ]
+  }
+}

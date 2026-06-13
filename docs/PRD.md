@@ -119,14 +119,23 @@ SessionEnd ──→ Off
 
 ### 3.8 Hooks 持久化（ensure-hooks.ps1）
 
-- 输入：无（自动读取项目级 `.claude/settings.json` 和用户级 `~/.claude/settings.json`）
+- 输入：无；可选参数 `-Force`
+- 路径来源：
+  - 通过 `$PSScriptRoot` 自动定位当前安装目录下的 `signal.ps1`
+  - 写入用户级 `%USERPROFILE%\.claude\settings.json`
+  - 不依赖仓库中的 `.claude/settings.json`，避免硬编码开发者本机路径
 - 功能：
-  - 检测用户级 `settings.json` 是否已包含 hooks
-  - 如未包含，将项目级 hooks 模板合并追加到用户级 `settings.json` 末尾
-  - 幂等执行——hooks 已存在时直接跳过，不重复写入
-  - 保留 `settings.json` 中已有的所有配置（env、theme 等）
-- 输出：无 stdout/stderr（保持静默）
-- 调用时机：由 `start-claude.cmd` 在启动 Claude 之前调用
+  - 动态生成 ClaudeTrafficLight Hooks 命令
+  - 合并到用户级 `settings.json`
+  - 保留用户已有的非 ClaudeTrafficLight hooks
+  - 清理旧的 `signal.ps1` hooks，避免重复注入
+  - 幂等执行：已指向当前 `signal.ps1` 时直接跳过
+  - 读到非法 JSON 时自动备份为 `.invalid-时间戳.bak`，再生成新的配置
+  - 写入前后执行 JSON 校验，降低写坏配置文件的风险
+- 输出：安装或跳过信息
+- 调用时机：
+  - `install.ps1` 安装阶段调用一次
+  - `start-claude.cmd` 启动 Claude 前再次确保 hooks 存在
 
 ## 4. 技术架构
 

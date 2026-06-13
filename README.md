@@ -82,6 +82,24 @@ claude --version
 
 > ⚠️ **不要直接运行源码目录里的 `scripts\start-claude.cmd`**。如果已安装，它会自动转发到安装目录的版本。请始终使用安装目录下的启动器。
 
+
+### 指定 Claude 项目目录
+
+Claude Code 默认把启动命令时所在的目录当作项目目录。推荐先 `cd` 到目标项目目录，再运行启动器：
+
+```powershell
+cd D:\Projects\MyProject
+& "$env:LOCALAPPDATA\ClaudeLight\scripts\start-claude.cmd"
+```
+
+也可以把目标项目目录作为第一个参数传给启动器：
+
+```powershell
+& "$env:LOCALAPPDATA\ClaudeLight\scripts\start-claude.cmd" "D:\Projects\MyProject"
+```
+
+启动器会输出当前 Claude project directory，便于确认 Claude 正在操作哪个项目。
+
 ### 第 5 步：验证安装是否成功
 
 在 PowerShell 中依次运行以下命令检查：

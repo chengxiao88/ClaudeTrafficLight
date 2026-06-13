@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 title Claude Code - TrafficLight
 
 rem If this script is being run from the source tree but an installed copy exists,
@@ -33,5 +33,18 @@ if exist "%APP%" (
     echo [ClaudeTrafficLight] Install .NET 8 SDK and rerun scripts\install.ps1 to build the app.
 )
 
-claude %*
+rem Optional first argument: target Claude project directory.
+rem Example:
+rem   start-claude.cmd "D:\Projects\MyProject"
+if not "%~1"=="" (
+    if exist "%~1\" (
+        cd /d "%~1"
+    ) else (
+        echo [ClaudeTrafficLight] Warning: target directory does not exist: %~1
+        echo [ClaudeTrafficLight] Claude will start in the current directory instead.
+    )
+)
+
+echo [ClaudeTrafficLight] Claude project directory: %CD%
+claude
 endlocal
